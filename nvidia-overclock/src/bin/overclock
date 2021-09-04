@@ -1,0 +1,56 @@
+#!/bin/bash
+
+oc_main() {
+    while [[ "$#" -gt 0 ]]; do
+        case $1 in
+            -g|--gpu) gpu_index="$2"; shift ;;
+            -c|--core) core="$2"; shift ;;
+            -m|--mem) mem="$2"; shift ;;
+            -z|--powermizer) powermizer="$2"; shift ;;
+            -f|--fan_control) fan_control="$2"; shift ;;
+            -s|--fan_speed) fan_speed="$2"; shift ;;
+            -p|--pl) pl="$2"; shift ;;
+            -h|--help) help=1 ;;
+            *) echo "Unknown parameter passed: $1"; exit 1 ;;
+        esac
+        shift
+    done
+
+    if [ ${gpu_index+x} ]; then
+        if [ ${recover+x} ]; then
+            nvidia-smi --gpu-reset -i $gpu_index
+            exit 0
+        fi
+
+        [ -z "$pl" ] || [ -z "$core" ] || [ -z "$mem" ] || [ -z "$powermizer" ] && \
+            xecho "Missing required params" && exit 1
+
+        nvidia-smi -i $gpu_index -pl $pl
+        nvs_query="-a [gpu:$gpu_index]/GPUPowerMizerMode=$powermizer \
+            -a [gpu:$gpu_index]/GPUGraphicsClockOffsetAllPerformanceLevels=$core \
+            -a [gpu:$gpu_index]/GPUMemoryTransferRateOffsetAllPerformanceLevels=$mem"
+    fi
+
+    if [ ${fan_control+x} ] && [ ${fan_speed+x} ]; then
+        NUM_FANS=`nvidia-settings -q fans | grep -c 'fan:'`
+        NUM_GPUS=`nvidia-settings -q gpus | grep -c 'gpu:'`
+        nvs_query=""
+        xecho "warning" "Applying fan settings to $NUM_FANS fans and $NUM_GPUS gpus"
+        
+        for ((i=0; i < NUM_GPUS; i++)); do
+            nvs_query+="-a [gpu:$i]/GPUFanControlState=$fan_control "
+        done
+
+        for ((i=0; i < NUM_FANS; i++)); do
+            nvs_query+="-a [fan:$i]/GPUTargetFanSpeed=$fan_speed "
+        done
+    fi
+    
+    xecho "warning" "Running query: $nvs_query"
+    nvidia-settings $nvs_query
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    source $SRC_PATH/functions.sh
+    oc_main "$@"
+fi

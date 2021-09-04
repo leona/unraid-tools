@@ -1,0 +1,28 @@
+#!/bin/bash
+
+update_state() {
+    local state=$1
+
+    /etc/rc.d/rc.docker $state
+    /etc/rc.d/rc.libvirt $state
+
+    if [[ "$state" == "stop" ]]; then # Fix for 'virtlogd is already running...'
+        pkill virtlogd
+        pkill virtlockd
+    fi
+}
+
+performance="$(nvidia-smi -q -d PERFORMANCE)"
+error_gpus=$(echo "$performance" | grep -B 2 "Unknown Error" | head -1 | awk '{ print $2 }')
+update_state stop
+
+while read -r gpu_bus_id; do
+    index=$(echo "$performance" | grep  "GPU 00000000:" | grep -n "$gpu_bus_id" |  cut -f1 -d: )
+    index=$(echo "$index - 1" | bc)
+    echo "Resetting: $index - $gpu_bus_id"
+    nvidia-smi --gpu-reset -i $index
+done <<< "$error_gpus"
+
+update_state start
+echo "Finished. Applying overclocks.."
+docker start TASK-nvidia-overclock && docker logs TASK-nvidia-overclock -f --tail 10

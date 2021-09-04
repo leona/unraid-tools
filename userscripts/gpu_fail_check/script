@@ -1,0 +1,41 @@
+#!/bin/bash
+
+STATE_PATH=/tmp/gpu_state_errors.log
+
+notify() {
+    echo "Sending failure message: $1"
+    message="The following GPU(s) are returning errors: $1"
+    /usr/local/emhttp/webGui/scripts/notify -i alert -e error -s "Alarm: GPU(s) failing" -d "$message" -m "$message"
+}
+
+failed_count=0
+performance="$(nvidia-smi -q -d PERFORMANCE)" 
+error_gpus=$(echo "$performance" | grep -B 2 "Unknown Error" | head -1 | awk '{ print $2 }')
+
+# Testing
+# error_gpus=$(echo "$performance" | grep "GPU 00000000" | awk '{ print $2 }')
+
+while read -r gpu_bus_id; do
+    [ -z "$gpu_bus_id" ] && continue
+    failed_count=$(echo "$failed_count + 1" | bc)
+
+    if [ -n "$(cat $STATE_PATH 2>/dev/null | grep $gpu_bus_id)" ]; then
+        echo "Already reported: $gpu_bus_id"
+        continue
+    fi
+
+    index=$(echo "$performance" | grep  "GPU 00000000:" | grep -n "$gpu_bus_id" |  cut -f1 -d: )
+    index=$(echo "$index - 1" | bc)
+    echo "GPU Error: $index - $gpu_bus_id"
+    fail_msg+="$index, "
+    echo "$gpu_bus_id" >> $STATE_PATH
+    echo "Result: $(cat $STATE_PATH)"
+done <<< "$(echo -e  "$error_gpus")"
+
+if [ -n "$fail_msg" ]; then
+    notify "${fail_msg::-2}"
+    echo "Finished with errors"
+else
+    [[ "$failed_count" == "0" ]] && rm -f $STATE_PATH
+    echo "Finished with no errors"
+fi

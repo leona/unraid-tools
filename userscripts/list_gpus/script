@@ -1,0 +1,24 @@
+#!/bin/bash
+
+gpu_short_id() {
+    gpu_uuid=$(nvidia-smi -i $1 --query-gpu=uuid --format=csv,noheader)
+    gpu_uuid_split=(${gpu_uuid//\-/ })
+    gpu_uuid_short="${gpu_uuid_split[1]}"
+    echo $gpu_uuid_short | xargs
+}
+
+gpu_bus_id() {
+    nvidia-smi -i $1 --query-gpu=gpu_bus_id --format=csv,noheader | xargs |  awk -F'00000000:' '{ print $2 }'
+}
+
+gpu_vendor() {
+    local bus_id=$(gpu_bus_id $1)
+    echo "$(lspci -vnn 2> /dev/null | grep -iF "$bus_id" -A 12 | grep "Subsystem" | awk -F'Subsystem: ' '{ print $2 }' | awk -F'Device' '{ print $1 }' | xargs | cut -c 1-20)"
+}
+
+FORMAT="%-12s %-12s %-25s %-12s\n"
+printf "$FORMAT" "gpu_index" "gpu_uuid_short" "gpu_bus_id"
+
+while read -r gpu_index; do
+    printf "$FORMAT" "$gpu_index" "$(gpu_short_id $gpu_index)" "$(gpu_vendor $gpu_index)" "$(gpu_bus_id $gpu_index)"
+done <<< "$(nvidia-smi --query-gpu=index --format=csv,noheader)"

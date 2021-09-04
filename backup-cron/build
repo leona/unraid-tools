@@ -1,0 +1,2 @@
+#!/bin/bash
+bin/combine --input src/task.sh --output backup_cron.sh

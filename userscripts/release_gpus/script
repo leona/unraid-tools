@@ -1,0 +1,3 @@
+#!/bin/bash
+
+/etc/libvirt/hooks/qemu.d/gpu_scaler "" force-release

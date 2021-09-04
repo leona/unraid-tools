@@ -1,0 +1,28 @@
+#!/bin/bash
+
+source $SRC_PATH/functions.sh
+xecho "warning" "Checking drivers"
+driver_check
+restart_x
+eval $(parse_yaml $CFG_PATH)
+xecho "warning" "Adjusting fan speeds"
+overclock \
+    --fan_control $gpu_default_fan_control \
+    --fan_speed $gpu_default_fan_speed
+xecho "warning" "Adjusting clocks"
+
+while read -r gpu_index; do
+    gpu_uuid_short="$(gpu_short_id $gpu_index)"
+    pl=gpu_profiles_${gpu_uuid_short}_pl
+    core=gpu_profiles_${gpu_uuid_short}_core
+    mem=gpu_profiles_${gpu_uuid_short}_mem
+    [ -z "${!pl}" ] && pl=$gpu_default_pl || pl=${!pl}
+    [ -z "${!core}" ] && core=$gpu_default_core || core=${!core}
+    [ -z "${!mem}" ] && mem=$gpu_default_mem || mem=${!mem}
+    overclock \
+        --gpu $gpu_index \
+        --pl $pl \
+        --core $core \
+        --mem $mem \
+        --powermizer $gpu_default_powermizer
+done <<< "$(nvidia-smi --query-gpu=index --format=csv,noheader)"

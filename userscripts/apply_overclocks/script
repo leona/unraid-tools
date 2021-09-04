@@ -1,0 +1,3 @@
+#!/bin/bash
+
+docker start TASK-nvidia-overclock && docker logs TASK-nvidia-overclock -f --tail 10

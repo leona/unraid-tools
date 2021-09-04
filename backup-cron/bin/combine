@@ -1,0 +1,28 @@
+#!/bin/bash
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -i|--input) input_path="$2"; shift ;;
+        -o|--output) output_path="$2"; shift ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+compile() {
+  while read line; do
+      if [[ "$(echo "$line" | cut -c1-7)" == "source " ]] || [[ "$(echo "$line" | cut -c1-8)" == "include " ]]; then
+          file="$(echo $line | cut -d' ' -f2 | sed "s/\.env/\.env\.production/g")"
+          echo "# include: $file"
+          echo "$(cat $file | sed "s/\#\!\/bin\/bash//g")"
+      else
+        echo "$line"
+      fi
+  done < "$1"
+}
+
+mkdir -p $(dirname $output_path)
+echo "Compiling $input_path into single file"
+compile $input_path > $output_path
+echo "Finished $output_path"
+
